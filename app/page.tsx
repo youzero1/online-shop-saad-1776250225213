@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import Hero from '@/components/Hero';
 import ProductGrid from '@/components/ProductGrid';
@@ -14,108 +14,123 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [cartOpen, setCartOpen] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   useEffect(() => {
-    (async () => {
+    async function fetchProducts() {
       setLoading(true);
       setError(null);
-      const { data, error: fetchError } = await supabase
-        .from('products')
-        .select('*')
-        .order('id', { ascending: true });
-      if (fetchError) {
-        console.error('Error fetching products:', fetchError);
-        setError('Failed to load products. Please try again later.');
+      const { data, error } = await supabase.from('products').select('*');
+      if (error) {
+        console.error('Error fetching products:', error);
+        setError('Failed to load products. Please make sure the products table exists in Supabase.');
       } else {
-        setProducts(data || []);
+        setProducts(data as Product[]);
       }
       setLoading(false);
-    })();
+    }
+    fetchProducts();
   }, []);
+
+  const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];
+
+  const filteredProducts = products.filter(product => {
+    const matchesSearch =
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'All' || product.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const addToCart = (product: Product) => {
+    setCartItems(prev => {
+      const existing = prev.find(item => item.id === product.id);
+      if (existing) {
+        return prev.map(item =>
+          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      }
+      return [...prev, { ...product, quantity: 1 }];
+    });
+  };
 
   const removeFromCart = (id: number) => {
     setCartItems(prev => prev.filter(item => item.id !== id));
   };
 
-  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const updateQuantity = (id: number, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(id);
+      return;
+    }
+    setCartItems(prev =>
+      prev.map(item => (item.id === id ? { ...item, quantity } : item))
+    );
+  };
 
-  const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))];
-  const filteredProducts = products.filter(p => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen bg-gray-50">
       <Navbar
         cartCount={cartCount}
-        onCartClick={() => setCartOpen(true)}
+        onCartClick={() => setIsCartOpen(true)}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
       />
       <Hero />
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-gray-500 text-lg">Loading products...</p>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Category Filter */}
+        <div className="flex flex-wrap gap-2 mb-8">
+          {categories.map(category => (
+            <button
+              key={category}
+              onClick={() => setSelectedCategory(category)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                selectedCategory === category
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+              }`}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+
+        {/* Status Messages */}
+        {loading && (
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            <span className="ml-4 text-gray-600 text-lg">Loading products...</span>
           </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <p className="text-5xl mb-4">⚠️</p>
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">Something went wrong</h3>
-            <p className="text-gray-500">{error}</p>
+        )}
+
+        {error && !loading && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <p className="text-red-600 font-medium">{error}</p>
+            <p className="text-red-400 text-sm mt-2">
+              Run the SQL in <code className="bg-red-100 px-1 rounded">supabase/seed.sql</code> in your Supabase SQL Editor, then refresh.
+            </p>
           </div>
-        ) : (
-          <>
-            <div className="flex flex-wrap gap-2 mb-8 justify-center">
-              {categories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                    selectedCategory === cat
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'bg-white text-gray-600 border border-gray-200 hover:border-blue-400 hover:text-blue-600'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-            <ProductGrid
-              products={filteredProducts}
-              onAddToCart={product => {
-                setCartItems(prev =>
-                  prev.find(i => i.id === product.id)
-                    ? prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i)
-                    : [...prev, { ...product, quantity: 1 }]
-                );
-              }}
-            />
-          </>
+        )}
+
+        {!loading && !error && (
+          <ProductGrid products={filteredProducts} onAddToCart={addToCart} />
         )}
       </main>
+
       <Footer />
-      {cartOpen && (
-        <Cart
-          items={cartItems}
-          total={cartTotal}
-          onClose={() => setCartOpen(false)}
-          onRemove={removeFromCart}
-          onUpdateQuantity={(id, qty) => {
-            if (qty <= 0) { removeFromCart(id); return; }
-            setCartItems(prev => prev.map(i => i.id === id ? { ...i, quantity: qty } : i));
-          }}
-        />
-      )}
+
+      <Cart
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        items={cartItems}
+        onRemove={removeFromCart}
+        onUpdateQuantity={updateQuantity}
+      />
     </div>
   );
 }

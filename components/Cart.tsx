@@ -1,31 +1,30 @@
-'use client';
-
-import { X, Minus, Plus, ShoppingBag } from 'lucide-react';
+import React from 'react';
+import { X, ShoppingBag, Minus, Plus } from 'lucide-react';
 import type { CartItem } from '@/types';
 
-interface CartProps {
-  items: CartItem[];
-  total: number;
+export interface CartProps {
+  isOpen: boolean;
   onClose: () => void;
+  items: CartItem[];
   onRemove: (id: number) => void;
   onUpdateQuantity: (id: number, quantity: number) => void;
 }
 
-export default function Cart({ items, total, onClose, onRemove, onUpdateQuantity }: CartProps) {
+export default function Cart({ isOpen, onClose, items, onRemove, onUpdateQuantity }: CartProps) {
+  if (!isOpen) return null;
+
+  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
       <div className="absolute inset-0 bg-black bg-opacity-50" onClick={onClose} />
       <div className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl flex flex-col">
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-xl font-bold text-gray-900">Shopping Cart</h2>
-          <button
-            onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-          >
+          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-6 h-6" />
           </button>
         </div>
-
         <div className="flex-1 overflow-y-auto p-4">
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -63,16 +62,13 @@ export default function Cart({ items, total, onClose, onRemove, onUpdateQuantity
                     >
                       <X className="w-4 h-4" />
                     </button>
-                    <span className="font-semibold text-gray-900">
-                      ${(item.price * item.quantity).toFixed(2)}
-                    </span>
+                    <span className="font-semibold text-gray-900">${(item.price * item.quantity).toFixed(2)}</span>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
-
         {items.length > 0 && (
           <div className="p-4 border-t bg-white">
             <div className="flex items-center justify-between mb-4">
